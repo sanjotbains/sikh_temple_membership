@@ -1,0 +1,33 @@
+{
+  "name": "sikh-temple-membership-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Sikh Temple Membership Processing System",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore"
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5",
+    "pinia": "^2.1.7",
+    "axios": "^1.6.2",
+    "primevue": "^3.46.0",
+    "primeicons": "^6.0.1",
+    "vue-pdf-embed": "^2.0.1",
+    "pdfjs-dist": "^3.11.174",
+    "date-fns": "^3.0.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.2",
+    "vite": "^5.0.10",
+    "@vue/test-utils": "^2.4.3",
+    "vitest": "^1.1.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.19.2",
+    "prettier": "^3.1.1"
+  }
+}
