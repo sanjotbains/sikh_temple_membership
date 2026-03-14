@@ -15,7 +15,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://192.168.0.112:5000', // Use LAN IP for proxy
+        target: 'http://192.168.0.13:5000', // Use LAN IP for proxy
         changeOrigin: true,
         secure: false
       }
