@@ -38,13 +38,13 @@
       <button @click="loadData" class="retry-btn">Retry</button>
     </div>
 
-    <!-- Pending OCR Section -->
-    <div v-if="pendingOcrSubmissions.length > 0" class="pending-ocr-section">
+    <!-- Pending OCR Banner -->
+    <div v-if="pendingOcrCount > 0" class="pending-ocr-section">
       <div class="section-header alert-header">
         <div>
           <h2>
             <i class="pi pi-exclamation-triangle"></i>
-            Submissions Awaiting OCR Processing ({{ pendingOcrCount }})
+            {{ pendingOcrCount }} Submission{{ pendingOcrCount !== 1 ? 's' : '' }} Awaiting OCR Processing
           </h2>
           <p>These submissions were uploaded but haven't been processed yet</p>
         </div>
@@ -57,45 +57,17 @@
           {{ isProcessingOCR ? 'Processing...' : 'Process All OCR' }}
         </button>
       </div>
-
-      <div class="ocr-submissions-list">
-        <div
-          v-for="submission in pendingOcrSubmissions"
-          :key="'ocr-' + submission.id"
-          class="ocr-submission-card"
-        >
-          <div class="submission-info">
-            <div class="submission-id">#{{ submission.id }}</div>
-            <div class="submission-filename">{{ submission.file_name }}</div>
-            <div class="submission-date">
-              <i class="pi pi-clock"></i>
-              Uploaded {{ formatDate(submission.uploaded_at) }}
-            </div>
-          </div>
-
-          <div class="submission-action">
-            <button
-              @click="processSingleOCR(submission.id)"
-              class="btn btn-sm btn-primary"
-              :disabled="isProcessingOCR"
-            >
-              <i class="pi pi-bolt"></i>
-              Process OCR
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="submissions.length === 0 && pendingOcrSubmissions.length === 0" class="empty-state">
+    <div v-if="!loading && !error && submissions.length === 0 && pendingOcrCount === 0" class="empty-state">
       <i class="pi pi-check-circle" style="font-size: 3rem; color: #10b981"></i>
       <h3>All caught up!</h3>
       <p>There are no submissions pending validation at the moment.</p>
     </div>
 
     <!-- Submissions List -->
-    <div v-else class="submissions-container">
+    <div v-if="submissions.length > 0" class="submissions-container">
       <div class="submissions-header">
         <h2>Pending Validations ({{ total }})</h2>
       </div>
@@ -192,7 +164,7 @@ async function loadData() {
     const [submissionsData, statsData, pendingOcrData] = await Promise.all([
       getPendingValidations(limit.value, offset.value),
       getValidationStats(),
-      getPendingSubmissions(50) // Load up to 50 pending OCR submissions
+      getPendingSubmissions(1000) // Load pending OCR submissions for processing
     ])
 
     submissions.value = submissionsData.submissions
@@ -211,22 +183,6 @@ async function loadData() {
   }
 }
 
-// Process a single submission's OCR
-async function processSingleOCR(submissionId) {
-  isProcessingOCR.value = true
-
-  try {
-    await processOCR(submissionId)
-    // Reload data to update the lists
-    await loadData()
-  } catch (err) {
-    console.error('Error processing OCR:', err)
-    alert('Failed to process OCR. Please try again.')
-  } finally {
-    isProcessingOCR.value = false
-  }
-}
-
 // Process all pending OCR submissions
 async function processAllPendingOCR() {
   if (pendingOcrSubmissions.value.length === 0) return
@@ -234,16 +190,21 @@ async function processAllPendingOCR() {
   isProcessingOCR.value = true
 
   try {
-    // Process all submissions sequentially
-    for (const submission of pendingOcrSubmissions.value) {
-      try {
-        await processOCR(submission.id)
-      } catch (err) {
-        console.error(`Failed to process OCR for submission ${submission.id}:`, err)
+    // Process all fetched submissions sequentially, reloading in batches
+    let remaining = [...pendingOcrSubmissions.value]
+    while (remaining.length > 0) {
+      for (const submission of remaining) {
+        try {
+          await processOCR(submission.id)
+        } catch (err) {
+          console.error(`Failed to process OCR for submission ${submission.id}:`, err)
+        }
       }
+      // Reload and check if more remain
+      const nextBatch = await getPendingSubmissions(1000)
+      remaining = nextBatch.submissions || []
     }
 
-    // Reload data to update the lists
     await loadData()
   } catch (err) {
     console.error('Error processing OCR batch:', err)
@@ -572,33 +533,6 @@ onMounted(() => {
   color: #78350f;
 }
 
-.ocr-submissions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.ocr-submission-card {
-  background: white;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  transition: all 0.2s;
-}
-
-.ocr-submission-card:hover {
-  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
-  border-color: #fbbf24;
-}
-
-.btn-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-}
 
 .section-header {
   margin-bottom: 1rem;
