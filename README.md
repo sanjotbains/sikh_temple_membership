@@ -1,4 +1,4 @@
-#`THIS IS A "VIBE-CODED" PROJECT THROWN TOGETHER VERY QUICKLY. DO NOT EXPECT THE DOCS TO BE ACCURATE.`
+# `THIS IS A "VIBE-CODED" PROJECT THROWN TOGETHER VERY QUICKLY. DO NOT EXPECT THE DOCS TO BE ACCURATE.`
 
 # Sikh Temple Membership Processing System
 A web-based application to process handwritten membership forms using OCR (Optical Character Recognition) with human validation. The system helps digitize hundreds of scanned forms efficiently while maintaining data accuracy through a human-in-the-loop validation workflow.
