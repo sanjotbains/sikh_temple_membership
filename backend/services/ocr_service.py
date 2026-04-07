@@ -60,6 +60,17 @@ class OCRService:
                 if result:
                     ocr_result_ids.append(result.id)
 
+            # If every image failed, treat the whole submission as failed
+            if not ocr_result_ids:
+                submission.ocr_status = 'error'
+                submission.error_message = 'OCR error: No images could be processed (check Google Cloud Vision API credentials and billing)'
+                db.session.commit()
+                return {
+                    'success': False,
+                    'ocr_result_ids': [],
+                    'error': 'No images could be processed'
+                }
+
             # Update submission OCR status
             submission.ocr_status = 'completed'
             db.session.commit()

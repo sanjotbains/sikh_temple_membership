@@ -4,7 +4,8 @@ Upload routes for file upload and processing
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
-from models import db, FormSubmission
+from sqlalchemy import exists, or_
+from models import db, FormSubmission, OCRResult
 from services.upload_service import UploadService
 from services.ocr_service import OCRService
 from services.field_extraction import FieldExtractionService
@@ -122,17 +123,27 @@ def process_ocr(submission_id):
     }), 200
 
 
+def _failed_ocr_query():
+    """
+    Returns a query for all submissions that need OCR retry:
+    - ocr_status='error', OR
+    - ocr_status='completed' but no OCR result rows (orphaned by a billing failure)
+    """
+    has_ocr_results = exists().where(OCRResult.submission_id == FormSubmission.id)
+    return FormSubmission.query.filter(
+        or_(
+            FormSubmission.ocr_status == 'error',
+            (FormSubmission.ocr_status == 'completed') & ~has_ocr_results
+        )
+    )
+
+
 @upload_bp.route('/failed-ocr', methods=['GET'])
 def get_failed_ocr():
     """
-    Get submissions where OCR processing failed
-
-    Returns:
-        List of submissions with ocr_status='error'
+    Get submissions where OCR failed or completed without results (orphaned).
     """
-    submissions = FormSubmission.query.filter_by(
-        ocr_status='error'
-    ).order_by(FormSubmission.uploaded_at.desc()).all()
+    submissions = _failed_ocr_query().order_by(FormSubmission.uploaded_at.desc()).all()
 
     return jsonify({
         'submissions': [s.to_dict(include_images=True) for s in submissions],
@@ -143,19 +154,16 @@ def get_failed_ocr():
 @upload_bp.route('/reset-failed-ocr', methods=['POST'])
 def reset_failed_ocr():
     """
-    Reset OCR-failed submissions back to pending so they can be retried
+    Reset OCR-failed and orphaned submissions back to pending so they can be retried.
 
     Request body (optional):
         { "submission_ids": [1, 2, 3] }  — reset specific IDs only
-        Omit to reset all failed submissions.
-
-    Returns:
-        Number of submissions reset
+        Omit to reset all failed/orphaned submissions.
     """
     data = request.get_json(silent=True) or {}
     submission_ids = data.get('submission_ids')
 
-    query = FormSubmission.query.filter_by(ocr_status='error')
+    query = _failed_ocr_query()
     if submission_ids:
         query = query.filter(FormSubmission.id.in_(submission_ids))
 

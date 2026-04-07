@@ -67,7 +67,7 @@
             <i class="pi pi-times-circle"></i>
             {{ failedOcrCount }} Submission{{ failedOcrCount !== 1 ? 's' : '' }} Failed OCR Processing
           </h2>
-          <p>OCR could not be completed — possibly due to a Google Cloud billing issue. Reset and retry when your account is restored.</p>
+          <p>These submissions have no usable OCR data — either the processing errored out or completed without extracting any text (e.g. due to a Google Cloud billing issue). Reset and retry once your account is restored.</p>
         </div>
         <button
           @click="retryFailedOCR"

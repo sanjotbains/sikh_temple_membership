@@ -4,6 +4,7 @@ Validation routes for reviewing and correcting OCR-extracted data
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import json
+from sqlalchemy import exists
 
 from models import db, FormSubmission, Member, ValidationCorrection, OCRResult
 from services.field_extraction import FieldExtractionService
@@ -27,10 +28,12 @@ def get_pending_validations():
     limit = request.args.get('limit', 20, type=int)
     offset = request.args.get('offset', 0, type=int)
 
-    # Get submissions with completed OCR but pending validation
-    query = FormSubmission.query.filter_by(
-        ocr_status='completed',
-        validation_status='pending'
+    # Get submissions with completed OCR, pending validation, and at least one OCR result
+    has_ocr_results = exists().where(OCRResult.submission_id == FormSubmission.id)
+    query = FormSubmission.query.filter(
+        FormSubmission.ocr_status == 'completed',
+        FormSubmission.validation_status == 'pending',
+        has_ocr_results
     ).order_by(FormSubmission.uploaded_at.desc())
 
     total = query.count()
@@ -347,9 +350,11 @@ def get_validation_stats():
     """
     Get validation statistics
     """
-    total_pending = FormSubmission.query.filter_by(
-        ocr_status='completed',
-        validation_status='pending'
+    has_ocr_results = exists().where(OCRResult.submission_id == FormSubmission.id)
+    total_pending = FormSubmission.query.filter(
+        FormSubmission.ocr_status == 'completed',
+        FormSubmission.validation_status == 'pending',
+        has_ocr_results
     ).count()
 
     in_progress = FormSubmission.query.filter_by(
