@@ -121,6 +121,26 @@ export function getImageUrl(submissionId, imageId) {
 }
 
 /**
+ * Get submissions where OCR processing failed
+ * @returns {Promise} List of failed submissions
+ */
+export async function getFailedOcrSubmissions() {
+  const response = await api.get('/upload/failed-ocr')
+  return response.data
+}
+
+/**
+ * Reset OCR-failed submissions back to pending so they can be retried
+ * @param {Array} submissionIds - Optional array of specific IDs to reset (omit for all)
+ * @returns {Promise} Reset result
+ */
+export async function resetFailedOcr(submissionIds) {
+  const body = submissionIds ? { submission_ids: submissionIds } : {}
+  const response = await api.post('/upload/reset-failed-ocr', body)
+  return response.data
+}
+
+/**
  * Update submission status
  * @param {Number} submissionId - Submission ID
  * @param {Object} statusUpdates - Status fields to update

@@ -59,8 +59,40 @@
       </div>
     </div>
 
+    <!-- Failed OCR Banner -->
+    <div v-if="failedOcrCount > 0" class="failed-ocr-section">
+      <div class="section-header alert-header failed-header">
+        <div>
+          <h2>
+            <i class="pi pi-times-circle"></i>
+            {{ failedOcrCount }} Submission{{ failedOcrCount !== 1 ? 's' : '' }} Failed OCR Processing
+          </h2>
+          <p>OCR could not be completed — possibly due to a Google Cloud billing issue. Reset and retry when your account is restored.</p>
+        </div>
+        <button
+          @click="retryFailedOCR"
+          class="btn btn-danger"
+          :disabled="isRetryingFailedOCR"
+        >
+          <i :class="isRetryingFailedOCR ? 'pi pi-spin pi-spinner' : 'pi pi-refresh'"></i>
+          {{ isRetryingFailedOCR ? 'Retrying...' : 'Retry Failed OCR' }}
+        </button>
+      </div>
+      <div class="failed-submissions-list">
+        <div
+          v-for="submission in failedOcrSubmissions"
+          :key="submission.id"
+          class="failed-submission-row"
+        >
+          <span class="submission-id">#{{ submission.id }}</span>
+          <span class="submission-filename">{{ submission.file_name }}</span>
+          <span class="error-message">{{ submission.error_message || 'OCR error' }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Empty State -->
-    <div v-if="!loading && !error && submissions.length === 0 && pendingOcrCount === 0" class="empty-state">
+    <div v-if="!loading && !error && submissions.length === 0 && pendingOcrCount === 0 && failedOcrCount === 0" class="empty-state">
       <i class="pi pi-check-circle" style="font-size: 3rem; color: #10b981"></i>
       <h3>All caught up!</h3>
       <p>There are no submissions pending validation at the moment.</p>
@@ -136,7 +168,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPendingValidations, getValidationStats } from '../services/validationService'
-import { getPendingSubmissions, processOCR } from '../services/uploadService'
+import { getPendingSubmissions, processOCR, getFailedOcrSubmissions, resetFailedOcr } from '../services/uploadService'
 
 const router = useRouter()
 
@@ -153,6 +185,11 @@ const offset = ref(0)
 const pendingOcrSubmissions = ref([])
 const pendingOcrCount = ref(0)
 const isProcessingOCR = ref(false)
+
+// Failed OCR state
+const failedOcrSubmissions = ref([])
+const failedOcrCount = ref(0)
+const isRetryingFailedOCR = ref(false)
 
 // Load data
 async function loadData() {
@@ -174,6 +211,11 @@ async function loadData() {
     // Load pending OCR submissions
     pendingOcrSubmissions.value = pendingOcrData.submissions || []
     pendingOcrCount.value = pendingOcrData.count || 0
+
+    // Load failed OCR submissions
+    const failedOcrData = await getFailedOcrSubmissions()
+    failedOcrSubmissions.value = failedOcrData.submissions || []
+    failedOcrCount.value = failedOcrData.count || 0
 
   } catch (err) {
     console.error('Error loading validation data:', err)
@@ -211,6 +253,40 @@ async function processAllPendingOCR() {
     alert('Some OCR processing failed. Please check the submissions.')
   } finally {
     isProcessingOCR.value = false
+  }
+}
+
+// Retry all failed OCR submissions
+async function retryFailedOCR() {
+  if (failedOcrSubmissions.value.length === 0) return
+
+  isRetryingFailedOCR.value = true
+
+  try {
+    await resetFailedOcr()
+    // Now process them via the existing OCR pipeline
+    const nextBatch = await getPendingSubmissions(1000)
+    pendingOcrSubmissions.value = nextBatch.submissions || []
+
+    let remaining = [...pendingOcrSubmissions.value]
+    while (remaining.length > 0) {
+      for (const submission of remaining) {
+        try {
+          await processOCR(submission.id)
+        } catch (err) {
+          console.error(`Failed to process OCR for submission ${submission.id}:`, err)
+        }
+      }
+      const nextBatch = await getPendingSubmissions(1000)
+      remaining = nextBatch.submissions || []
+    }
+
+    await loadData()
+  } catch (err) {
+    console.error('Error retrying failed OCR:', err)
+    alert('Some OCR retries failed. Please check the submissions.')
+  } finally {
+    isRetryingFailedOCR.value = false
   }
 }
 
@@ -536,6 +612,69 @@ onMounted(() => {
 
 .section-header {
   margin-bottom: 1rem;
+}
+
+.failed-ocr-section {
+  background: #fff1f2;
+  border: 2px solid #f87171;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.failed-header h2 {
+  color: #991b1b;
+}
+
+.failed-header p {
+  color: #7f1d1d;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.failed-submissions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.failed-submission-row {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.5rem;
+  background: #fee2e2;
+  border-radius: 4px;
+}
+
+.failed-submission-row .submission-id {
+  font-weight: 600;
+  color: #991b1b;
+  flex-shrink: 0;
+}
+
+.failed-submission-row .submission-filename {
+  color: #1f2937;
+  flex-shrink: 0;
+}
+
+.failed-submission-row .error-message {
+  color: #b91c1c;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
 }
 
 .btn {

@@ -4,6 +4,7 @@ Upload routes for file upload and processing
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
+from models import db, FormSubmission
 from services.upload_service import UploadService
 from services.ocr_service import OCRService
 from services.field_extraction import FieldExtractionService
@@ -118,6 +119,57 @@ def process_ocr(submission_id):
         'submission_id': submission_id,
         'ocr_result_ids': ocr_result['ocr_result_ids'],
         'extracted_fields': fields
+    }), 200
+
+
+@upload_bp.route('/failed-ocr', methods=['GET'])
+def get_failed_ocr():
+    """
+    Get submissions where OCR processing failed
+
+    Returns:
+        List of submissions with ocr_status='error'
+    """
+    submissions = FormSubmission.query.filter_by(
+        ocr_status='error'
+    ).order_by(FormSubmission.uploaded_at.desc()).all()
+
+    return jsonify({
+        'submissions': [s.to_dict(include_images=True) for s in submissions],
+        'count': len(submissions)
+    }), 200
+
+
+@upload_bp.route('/reset-failed-ocr', methods=['POST'])
+def reset_failed_ocr():
+    """
+    Reset OCR-failed submissions back to pending so they can be retried
+
+    Request body (optional):
+        { "submission_ids": [1, 2, 3] }  — reset specific IDs only
+        Omit to reset all failed submissions.
+
+    Returns:
+        Number of submissions reset
+    """
+    data = request.get_json(silent=True) or {}
+    submission_ids = data.get('submission_ids')
+
+    query = FormSubmission.query.filter_by(ocr_status='error')
+    if submission_ids:
+        query = query.filter(FormSubmission.id.in_(submission_ids))
+
+    submissions = query.all()
+
+    for submission in submissions:
+        submission.ocr_status = 'pending'
+        submission.error_message = None
+
+    db.session.commit()
+
+    return jsonify({
+        'message': f'Reset {len(submissions)} submission(s) for OCR retry',
+        'count': len(submissions)
     }), 200
 
 
