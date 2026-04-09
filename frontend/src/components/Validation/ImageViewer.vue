@@ -95,7 +95,7 @@ function onImageError(event) {
   overflow: auto;
   padding: 1rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: #f9fafb;
   position: relative;
